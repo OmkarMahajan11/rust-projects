@@ -38,92 +38,75 @@ fn _parse(tokens: &[Token], idx: usize) -> Result<(Json, usize)> {
 }
 
 fn parse_object(tokens: &[Token], mut idx: usize) -> Result<(Json, usize)> {
-    let mut m: HashMap<String, Json> = HashMap::new();
+    let mut map = HashMap::new();
 
-    // consume '{'
+    idx += 1; // consume '{'
+    let mut expect_comma = false;
+
+    while idx < tokens.len() {
+        if matches!(tokens[idx], Token::RightBrace) {
+            return Ok((Json::Object(map), idx + 1));
+        }
+
+        if expect_comma {
+            if tokens[idx] != Token::Comma {
+                anyhow::bail!("expected ',' or '}}' after value");
+            }
+            idx += 1;
+        }
+
+        let ((key, val), i) = parse_key_val(tokens, idx)?;
+        map.insert(key, val);
+        idx = i;
+        expect_comma = true;
+    }
+
+    anyhow::bail!("unexpected end of input, expected '}}'");
+}
+
+fn parse_key_val(tokens: &[Token], mut idx: usize) -> Result<((String, Json), usize)> {
+    let key = match tokens.get(idx) {
+        Some(Token::StringToken(s)) => s.clone(),
+        Some(_) => anyhow::bail!("only strings can be object keys"),
+        None => anyhow::bail!("unexpected end of input, expected object key"),
+    };
+
+    idx += 1;
+    if !matches!(tokens.get(idx), Some(Token::Colon)) {
+        anyhow::bail!("expected ':'");
+    }
+    // consume `:`
     idx += 1;
 
-    // for every iteration of loop, one `key: val` is parsed
-    let mut closed = false;
-    while idx < tokens.len() {
-        match &tokens[idx] {
-            Token::RightBrace => {
-                idx += 1;
-                closed = true;
-                break;
-            }
-            Token::Comma => {
-                idx += 1;
-                if idx >= tokens.len() {
-                    anyhow::bail!("unexpected end of input after `,`");
-                }
-                if matches!(&tokens[idx], Token::RightBrace | Token::RightBracket) {
-                    anyhow::bail!("trailing commas are not allowed");
-                }
-                continue;
-            }
-            Token::StringToken(s) => {
-                let key = String::from(s);
-                idx += 1;
-
-                if idx >= tokens.len() {
-                    anyhow::bail!("unexpected end of input, expected `:`");
-                }
-                if &tokens[idx] != &Token::Colon {
-                    anyhow::bail!("expected a `:`");
-                }
-
-                // consume `:`
-                idx += 1;
-
-                let (val, i) = _parse(tokens, idx)?;
-                m.insert(key, val);
-                idx = i;
-            }
-            _ => anyhow::bail!("only strings can be object keys"),
-        }
-    }
-
-    if !closed {
-        anyhow::bail!("unexpected end of input, expected `}}`");
-    }
-
-    Ok((Json::Object(m), idx))
+    let (val, idx) = _parse(tokens, idx)?;
+    Ok(((key, val), idx))
 }
 
 fn parse_array(tokens: &[Token], mut idx: usize) -> Result<(Json, usize)> {
     let mut arr = Vec::new();
 
-    // consume '['
-    idx += 1;
+    idx += 1; // consume '['
 
-    let mut closed = false;
+    let mut expect_comma = false;
     while idx < tokens.len() {
-        match &tokens[idx] {
-            Token::RightBracket => {
-                // consume ']'
-                idx += 1;
-                closed = true;
-                break;
-            }
-            Token::Comma => {
-                idx += 1;
-                continue;
-            }
-            _ => match _parse(tokens, idx)? {
-                (j, i) => {
-                    idx = i;
-                    arr.push(j);
-                }
-            },
+        if matches!(tokens[idx], Token::RightBracket) {
+            return Ok((Json::Array(arr), idx + 1));
         }
+
+        if expect_comma {
+            if tokens[idx] != Token::Comma {
+                anyhow::bail!("expected ',' or ']' after element");
+            }
+            idx += 1;
+        }
+
+        let (value, i) = _parse(tokens, idx)?;
+        arr.push(value);
+        idx = i;
+        expect_comma = true;
     }
 
-    if !closed {
-        anyhow::bail!("unexpected end of input, expected `]`");
-    }
-
-    Ok((Json::Array(arr), idx))
+    anyhow::bail!("unexpected end of input, expected ']'");
 }
 
 #[cfg(test)]

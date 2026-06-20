@@ -1,0 +1,11 @@
+{
+  "person": {
+    "name": "Bob",
+    "age": 25,
+    "address": {
+      "street": "123 Main St",
+      "city": "Springfield"
+    }
+  },
+  "scores": [95, 87, 92]
+}

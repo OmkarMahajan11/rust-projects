@@ -1,0 +1,9 @@
+{
+  "string": "hello",
+  "number": 42,
+  "float": 3.14,
+  "negative": -10,
+  "bool_true": true,
+  "bool_false": false,
+  "null_value": null
+}
